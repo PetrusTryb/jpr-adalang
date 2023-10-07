@@ -4,22 +4,41 @@
 -- They should also complete the code with constructions that lack there
 
 -- Piotr Trybisz, 193557 mod 3 = 0
+-- Pawel Pstragowski, 193473 mod 3 = 0
+
+--TODO:
+--[] Temporary halting Producers
+--[] Assembly (meal) alternatives
+----[] When primary assembly is ready give it
+----[] When assembly alternative is ready give it
+----[] Else wait for assembly (or alternative?) (up to X seconds?)
+--[]Fancy dialogs
+--[]More meals (assemblies)?
 with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Strings.Unbounded.Text_IO; use Ada.Strings.Unbounded.Text_IO;
 with Ada.Integer_Text_IO;
 with Ada.Numerics.Discrete_Random;
 
 
 procedure Simulation is
-   Number_Of_Products: constant Integer := 5;
-   Number_Of_Assemblies: constant Integer := 3;
+   Number_Of_Products: constant Integer := 8;
+   Number_Of_Assemblies: constant Integer := 4;
    Number_Of_Consumers: constant Integer := 2;
    subtype Product_Type is Integer range 1 .. Number_Of_Products;
    subtype Assembly_Type is Integer range 1 .. Number_Of_Assemblies;
    subtype Consumer_Type is Integer range 1 .. Number_Of_Consumers;
-   Product_Name: constant array (Product_Type) of String(1 .. 8)
-     := ("Product1", "Product2", "Product3", "Product4", "Product5");
-   Assembly_Name: constant array (Assembly_Type) of String(1 .. 9)
-     := ("Assembly1", "Assembly2", "Assembly3");
+   function "+"(X: String) return Unbounded_String renames To_Unbounded_String;
+   Product_Name: constant array (Product_Type) of Unbounded_String
+     := (+"Bulka", +"Wolowina", +"Ser", +"Pikle", +"Salata", +"Kurczak", +"Pomidor", +"Bekon");
+   --Sources:
+   --1. https://mcdonalds.pl/nasze-menu/burgery/hamburger/
+   --2. https://mcdonalds.pl/nasze-menu/burgery/cheeseburger/
+   --3. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-klasyczny/
+   --4. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-bekon-deluxe/
+   Assembly_Name: constant array (Assembly_Type) of Unbounded_String
+     := (+"Hamburger", +"Cheeseburger", +"McWrap Klasyczny", +"McWrap Bekon");
+   --Contents defined in line 138
    package Random_Assembly is new
      Ada.Numerics.Discrete_Random(Assembly_Type);
    type My_Str is new String(1 ..256);
@@ -66,7 +85,7 @@ procedure Simulation is
       end Start;
       Put_Line("Started producer of " & Product_Name(Product_Type_Number));
       loop
-
+delay Duration(Random_Production.Random(G));
 	 Put_Line("Produced product " & Product_Name(Product_Type_Number)
 		    & " number "  & Integer'Image(Product_Number));
 	 -- Accept for storage
@@ -100,8 +119,11 @@ procedure Simulation is
       loop
 	 delay Duration(Random_Consumption.Random(G)); --  simulate consumption
 	 Assembly_Type := Random_Assembly.Random(G2);
-	 -- take an assembly for consumption
-	 B.Deliver(Assembly_Type, Assembly_Number);
+         -- take an assembly for consumption
+    Put_Line(Consumer_Name(Consumer_Nb) & ": ordered assembly " &
+            Assembly_Name(Assembly_Type));
+         B.Deliver(Assembly_Type, Assembly_Number);
+--TODO: await order
 	 Put_Line(Consumer_Name(Consumer_Nb) & ": taken assembly " &
 		    Assembly_Name(Assembly_Type) & " number " &
 		    Integer'Image(Assembly_Number));
@@ -109,17 +131,18 @@ procedure Simulation is
    end Consumer;
 
    task body Buffer is
-      Storage_Capacity: constant Integer := 30;
+      Storage_Capacity: constant Integer := 64;
       type Storage_type is array (Product_Type) of Integer;
       Storage: Storage_type
-	:= (0, 0, 0, 0, 0);
+	:= (0, 0, 0, 0, 0, 0, 0, 0);
       Assembly_Content: array(Assembly_Type, Product_Type) of Integer
-	:= ((2, 1, 2, 1, 2),
-	    (2, 2, 0, 1, 0),
-	    (1, 1, 2, 0, 1));
+        := ((2, 1, 0, 3, 0, 0, 0, 0),
+            (2, 1, 1, 2, 0, 0, 0, 0),
+            (0, 0, 3, 0, 2, 4, 4, 0),
+            (0, 0, 0, 0, 2, 4, 4, 2));
       Max_Assembly_Content: array(Product_Type) of Integer;
       Assembly_Number: array(Assembly_Type) of Integer
-	:= (1, 1, 1);
+	:= (1, 1, 1, 1);
       In_Storage: Integer := 0;
 
       procedure Setup_Variables is
@@ -142,10 +165,6 @@ procedure Simulation is
 	 Lacking_room: Integer;
 	 MP: Boolean;			--  can accept
       begin
-	 if In_Storage >= Storage_Capacity then
-	    return False;
-	 end if;
-	 -- There is free room in the storage
 	 Free := Storage_Capacity - In_Storage;
 	 MP := True;
 	 for W in Product_Type loop
@@ -158,7 +177,8 @@ procedure Simulation is
 	       				--  assembly
 	 end if;
 	 if Integer'Max(0, Max_Assembly_Content(Product) - Storage(Product)) > 0 then
-	    -- exactly this product lacks
+            -- exactly this product lacks
+Put_Line("Exactly this product lacks: " & Product_Name(Product));
 	    return True;
 	 end if;
 	 Lacking_room := 1;			--  insert current product
@@ -166,10 +186,12 @@ procedure Simulation is
 	    Lacking(W) := Integer'Max(0, Max_Assembly_Content(W) - Storage(W));
 	    Lacking_room := Lacking_room + Lacking(W);
 	 end loop;
-	 if Free >= Lacking_room then
+         if Free >= Lacking_room then
+Put_Line("There is enough room in storage for arbitrary assembly");
 	    -- there is enough room in storage for arbitrary assembly
 	    return True;
-	 else
+         else
+Put_Line("No room for this product");
 	    -- no room for this product
 	    return False;
 	 end if;
@@ -197,18 +219,21 @@ procedure Simulation is
       Put_Line("Buffer started");
       Setup_Variables;
       loop
-	 accept Take(Product: in Product_Type; Number: in Integer) do
-	   if Can_Accept(Product) then
-	      Put_Line("Accepted product " & Product_Name(Product) & " number " &
-		Integer'Image(Number));
-	      Storage(Product) := Storage(Product) + 1;
-	      In_Storage := In_Storage + 1;
-  	   else
-	      Put_Line("Rejected product " & Product_Name(Product) & " number " &
-		    Integer'Image(Number));
-	   end if;
-	 end Take;
-	 Storage_Contents;
+         select
+            when In_Storage < Storage_Capacity =>
+               accept Take(Product: in Product_Type; Number: in Integer) do
+                  if Can_Accept(Product) then
+                     Put_Line("Accepted product " & Product_Name(Product) & " number " &
+                                Integer'Image(Number));
+                     Storage(Product) := Storage(Product) + 1;
+                     In_Storage := In_Storage + 1;
+                  else
+                     Put_Line("[!!!]Rejected product " & Product_Name(Product) & " number " &
+                                Integer'Image(Number));
+                  end if;
+               end Take;
+or
+	 --Storage_Contents;
 	 accept Deliver(Assembly: in Assembly_Type; Number: out Integer) do
 	    if Can_Deliver(Assembly) then
 	       Put_Line("Delivered assembly " & Assembly_Name(Assembly) & " number " &
@@ -223,17 +248,18 @@ procedure Simulation is
 	       Put_Line("Lacking products for assembly " & Assembly_Name(Assembly));
 	       Number := 0;
 	    end if;
-	 end Deliver;
-	 Storage_Contents;
+            end Deliver;
+end select;
+	 --Storage_Contents;
       end loop;
    end Buffer;
 
 begin
    for I in 1 .. Number_Of_Products loop
-      P(I).Start(I, 10);
+      P(I).Start(I, 0);
    end loop;
    for J in 1 .. Number_Of_Consumers loop
-      K(J).Start(J,12);
+      K(J).Start(J,0);
    end loop;
 end Simulation;
 
