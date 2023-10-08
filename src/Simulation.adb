@@ -14,20 +14,23 @@
 ----[] Else wait for assembly (or alternative?) (up to X seconds?)
 --[]Fancy dialogs
 --[]More meals (assemblies)?
-with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Text_IO;                   use Ada.Text_IO;
+with Ada.Strings.Unbounded;         use Ada.Strings.Unbounded;
 with Ada.Strings.Unbounded.Text_IO; use Ada.Strings.Unbounded.Text_IO;
 with Ada.Integer_Text_IO;
 with Ada.Numerics.Discrete_Random;
 
 
 procedure Simulation is
+
    Number_Of_Products: constant Integer := 8;
    Number_Of_Assemblies: constant Integer := 4;
    Number_Of_Consumers: constant Integer := 2;
+
    subtype Product_Type is Integer range 1 .. Number_Of_Products;
    subtype Assembly_Type is Integer range 1 .. Number_Of_Assemblies;
    subtype Consumer_Type is Integer range 1 .. Number_Of_Consumers;
+
    function "+"(X: String) return Unbounded_String renames To_Unbounded_String;
    Product_Name: constant array (Product_Type) of Unbounded_String
      := (+"Bulka", +"Wolowina", +"Ser", +"Pikle", +"Salata", +"Kurczak", +"Pomidor", +"Bekon");
