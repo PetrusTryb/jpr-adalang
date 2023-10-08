@@ -7,30 +7,26 @@
 -- Pawel Pstragowski, 193473 mod 3 = 0
 
 --TODO:
---[] Temporary halting Producers
---[] Assembly (meal) alternatives
+--[] Assembly (meal) alternatives, waiting for meal (not taking empty meal) - important!
 ----[] When primary assembly is ready give it
 ----[] When assembly alternative is ready give it
 ----[] Else wait for assembly (or alternative?) (up to X seconds?)
 --[]Fancy dialogs
 --[]More meals (assemblies)?
-with Ada.Text_IO;                   use Ada.Text_IO;
-with Ada.Strings.Unbounded;         use Ada.Strings.Unbounded;
+with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Strings.Unbounded.Text_IO; use Ada.Strings.Unbounded.Text_IO;
 with Ada.Integer_Text_IO;
 with Ada.Numerics.Discrete_Random;
 
 
 procedure Simulation is
-
    Number_Of_Products: constant Integer := 8;
    Number_Of_Assemblies: constant Integer := 4;
    Number_Of_Consumers: constant Integer := 2;
-
    subtype Product_Type is Integer range 1 .. Number_Of_Products;
    subtype Assembly_Type is Integer range 1 .. Number_Of_Assemblies;
    subtype Consumer_Type is Integer range 1 .. Number_Of_Consumers;
-
    function "+"(X: String) return Unbounded_String renames To_Unbounded_String;
    Product_Name: constant array (Product_Type) of Unbounded_String
      := (+"Bulka", +"Wolowina", +"Ser", +"Pikle", +"Salata", +"Kurczak", +"Pomidor", +"Bekon");
@@ -43,7 +39,7 @@ procedure Simulation is
      := (+"Hamburger", +"Cheeseburger", +"McWrap Klasyczny", +"McWrap Bekon");
    Assembly_Alternatives: constant array (Assembly_Type) of Assembly_Type
      := (2,1,4,3);
-     --Assembly contents defined in line 138
+   --Assembly contents defined in line 138
    package Random_Assembly is new
      Ada.Numerics.Discrete_Random(Assembly_Type);
    type My_Str is new String(1 ..256);
@@ -52,6 +48,10 @@ procedure Simulation is
    task type Producer is
       -- Give the Producer an identity, i.e. the product type
       entry Start(Product: in Product_Type; Production_Time: in Integer);
+      -- Pause task until resumed by buffer
+      --entry Wait_For_Resume;
+      -- Resumes production of previously producted product
+      entry Resume_Production;
    end Producer;
 
    -- Consumer gets an arbitrary assembly of several products from the buffer
@@ -64,7 +64,7 @@ procedure Simulation is
    -- In the Buffer, products are assemblied into an assembly
    task type Buffer is
       -- Accept a product to the storage provided there is a room for it
-      entry Take(Product: in Product_Type; Number: in Integer);
+      entry Take(Product: in Product_Type; Number: in Integer; Accepted: out Boolean);
       -- Deliver an assembly provided there are enough products for it
       entry Order(Assembly: in Assembly_Type; Number: out Integer);
    end Buffer;
@@ -81,21 +81,31 @@ procedure Simulation is
       Product_Type_Number: Integer;
       Product_Number: Integer;
       Production: Integer;
+      Active: Boolean;
+      Last_Accepted: Boolean;
    begin
       accept Start(Product: in Product_Type; Production_Time: in Integer) do
          Random_Production.Reset(G);	--  start random number generator
          Product_Number := 1;
          Product_Type_Number := Product;
          Production := Production_Time;
+         Active := True;
       end Start;
-      Put_Line("Started producer of " & Product_Name(Product_Type_Number));
+      Put_Line("[PRODUCENT] Uruchomiono produkcje: " & Product_Name(Product_Type_Number));
       loop
          delay Duration(Random_Production.Random(G));
-         Put_Line("Produced product " & Product_Name(Product_Type_Number)
-                  & " number "  & Integer'Image(Product_Number));
+         Put_Line("[PRODUCENT] Wysylanie: " & Product_Name(Product_Type_Number)
+                  & " #"  & Integer'Image(Product_Number));
          -- Accept for storage
-         B.Take(Product_Type_Number, Product_Number);
-         Product_Number := Product_Number + 1;
+         B.Take(Product_Type_Number, Product_Number, Last_Accepted);
+         if not Last_Accepted then
+            Put_Line("[PRODUCENT] Restauracja nie przyjela dostawy " & Product_Name(Product_Type_Number) & " - produkcja wstrzymana");
+            accept Resume_Production  do
+               Put_Line("[PRODUCENT] Restauracja jest gotowa przyjac " & Product_Name(Product_Type_Number) & " - wznawianie produkcji...");
+            end Resume_Production;
+         else
+            Product_Number := Product_Number + 1;
+         end if;
       end loop;
    end Producer;
 
@@ -136,7 +146,7 @@ procedure Simulation is
    end Consumer;
 
    task body Buffer is
-      Storage_Capacity: constant Integer := 64;
+      Storage_Capacity: constant Integer := 40;
       type Storage_type is array (Product_Type) of Integer;
       Storage: Storage_type
         := (0, 0, 0, 0, 0, 0, 0, 0);
@@ -171,6 +181,9 @@ procedure Simulation is
          MP: Boolean;			--  can accept
       begin
          Free := Storage_Capacity - In_Storage;
+         if Free <= 0 then
+            return False;
+         end if;
          MP := True;
          for W in Product_Type loop
             if Storage(W) < Max_Assembly_Content(W) then
@@ -183,7 +196,7 @@ procedure Simulation is
          end if;
          if Integer'Max(0, Max_Assembly_Content(Product) - Storage(Product)) > 0 then
             -- exactly this product lacks
-            Put_Line("Exactly this product lacks: " & Product_Name(Product));
+            --Put_Line("Exactly this product lacks: " & Product_Name(Product));
             return True;
          end if;
          Lacking_room := 1;			--  insert current product
@@ -192,15 +205,30 @@ procedure Simulation is
             Lacking_room := Lacking_room + Lacking(W);
          end loop;
          if Free >= Lacking_room then
-            Put_Line("There is enough room in storage for arbitrary assembly");
+            --Put_Line("There is enough room in storage for arbitrary assembly");
             -- there is enough room in storage for arbitrary assembly
             return True;
          else
-            Put_Line("No room for this product");
+            --Put_Line("No room for this product");
             -- no room for this product
             return False;
          end if;
       end Can_Accept;
+
+      procedure Evaluate_Needs is
+      begin
+         for prod in Product_Type loop
+            if Can_Accept(prod) then
+               select
+                  P(prod).Resume_Production;
+               else
+                  null;
+                  --already working
+               end select;
+            end if;
+         end loop;
+         --Put_Line("Needs evaluated");
+      end Evaluate_Needs;
 
       function Can_Deliver(Assembly: Assembly_Type) return Boolean is
       begin
@@ -225,22 +253,23 @@ procedure Simulation is
       Setup_Variables;
       loop
          select
-            when In_Storage < Storage_Capacity =>
-               accept Take(Product: in Product_Type; Number: in Integer) do
-                  if Can_Accept(Product) then
-                     Put_Line("Accepted product " & Product_Name(Product) & " number " &
-                                Integer'Image(Number));
-                     Storage(Product) := Storage(Product) + 1;
-                     In_Storage := In_Storage + 1;
-                  else
-                     Put_Line("[!!!]Rejected product " & Product_Name(Product) & " number " &
-                                Integer'Image(Number));
-                  end if;
-               end Take;
+            accept Take(Product: in Product_Type; Number: in Integer; Accepted: out Boolean) do
+               if Can_Accept(Product) then
+                  Put_Line("[RESTAURACJA] Przyjeto dostawe: " & Product_Name(Product) & " #" &
+                             Integer'Image(Number));
+                  Storage(Product) := Storage(Product) + 1;
+                  In_Storage := In_Storage + 1;
+                  Accepted:=True;
+               else
+                  Put_Line("[RESTAURACJA] Odrzucono dostawe: " & Product_Name(Product) & " #" &
+                             Integer'Image(Number));
+                  Accepted:=False;
+               end if;
+            end Take;
          or
             accept Order(Assembly: in Assembly_Type; Number: out Integer) do
                if Can_Deliver(Assembly) then
-                  Put_Line("Delivered assembly " & Assembly_Name(Assembly) & " number " &
+                  Put_Line("[RESTAURACJA] Delivered assembly " & Assembly_Name(Assembly) & " number " &
                              Integer'Image(Assembly_Number(Assembly)));
                   for W in Product_Type loop
                      Storage(W) := Storage(W) - Assembly_Content(Assembly, W);
@@ -249,11 +278,13 @@ procedure Simulation is
                   Number := Assembly_Number(Assembly);
                   Assembly_Number(Assembly) := Assembly_Number(Assembly) + 1;
                else
-                  Put_Line("Lacking products for assembly " & Assembly_Name(Assembly));
+                  Put_Line("[RESTAURACJA] Lacking products for assembly " & Assembly_Name(Assembly));
                   Number := 0;
                end if;
+               Evaluate_Needs;
             end Order;
          end select;
+         Evaluate_Needs;
          --Storage_Contents;
       end loop;
    end Buffer;
