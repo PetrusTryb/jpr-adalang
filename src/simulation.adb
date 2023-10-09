@@ -7,10 +7,6 @@
 -- Pawel Pstragowski, 193473 mod 3 = 0
 
 --TODO:
---[] Assembly (meal) alternatives, waiting for meal (not taking empty meal) - important!
-----[] When primary assembly is ready give it
-----[] When assembly alternative is ready give it
-----[] Else wait for assembly (or alternative?) (up to X seconds?)
 --[]Fancy dialogs
 --[]More meals (assemblies)?
 with Ada.Text_IO; use Ada.Text_IO;
@@ -37,8 +33,8 @@ procedure Simulation is
    --4. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-bekon-deluxe/
    Assembly_Name: constant array (Assembly_Type) of Unbounded_String
      := (+"Hamburger", +"Cheeseburger", +"McWrap Klasyczny", +"McWrap Bekon");
-   Assembly_Alternatives: constant array (Assembly_Type) of Assembly_Type
-     := (2,1,4,3);
+   --Assembly_Alternatives: constant array (Assembly_Type) of Assembly_Type
+     --:= (2,1,4,3);
    --Assembly contents defined in line 138
    package Random_Assembly is new
      Ada.Numerics.Discrete_Random(Assembly_Type);
@@ -120,8 +116,8 @@ procedure Simulation is
       Consumption: Integer;
       Assembly_Type: Integer;
       Consumer_Name: constant array (1 .. Number_Of_Consumers)
-        of String(1 .. 9)
-        := ("Consumer1", "Consumer2");
+        of String(1 .. 8)
+        := ("Student1", "Student2");
    begin
       accept Start(Consumer_Number: in Consumer_Type;
                    Consumption_Time: in Integer) do
@@ -130,18 +126,21 @@ procedure Simulation is
          Consumer_Nb := Consumer_Number;
          Consumption := Consumption_Time;
       end Start;
-      Put_Line("Started consumer " & Consumer_Name(Consumer_Nb));
       loop
          delay Duration(Random_Consumption.Random(G)); --  simulate consumption
          Assembly_Type := Random_Assembly.Random(G2);
          -- take an assembly for consumption
-         Put_Line(Consumer_Name(Consumer_Nb) & ": ordered assembly " &
+         Put_Line("["& Consumer_Name(Consumer_Nb) & "] Poprosze " &
                     Assembly_Name(Assembly_Type));
          B.Order(Assembly_Type, Assembly_Number);
          --TODO: await order
-         Put_Line(Consumer_Name(Consumer_Nb) & ": taken assembly " &
-                    Assembly_Name(Assembly_Type) & " number " &
-                    Integer'Image(Assembly_Number));
+         if Assembly_Number > 0 then
+            Put_Line("["&Consumer_Name(Consumer_Nb) & "] Odebralem " &
+                       Assembly_Name(Assembly_Type) & " #" &
+                       Integer'Image(Assembly_Number)&" - dziekuje!");
+         else
+            Put_Line("["&Consumer_Name(Consumer_Nb) & "] Trudno, sprobuje innym razem.");
+         end if;
       end loop;
    end Consumer;
 
@@ -249,7 +248,7 @@ procedure Simulation is
       end Storage_Contents;
 
    begin
-      Put_Line("Buffer started");
+      Put_Line("[RESTAURACJA] Zapraszamy");
       Setup_Variables;
       loop
          select
@@ -269,8 +268,8 @@ procedure Simulation is
          or
             accept Order(Assembly: in Assembly_Type; Number: out Integer) do
                if Can_Deliver(Assembly) then
-                  Put_Line("[RESTAURACJA] Delivered assembly " & Assembly_Name(Assembly) & " number " &
-                             Integer'Image(Assembly_Number(Assembly)));
+                  Put_Line("[RESTAURACJA] Zamowienie " & Assembly_Name(Assembly) & " #" &
+                             Integer'Image(Assembly_Number(Assembly))&" jest gotowe.");
                   for W in Product_Type loop
                      Storage(W) := Storage(W) - Assembly_Content(Assembly, W);
                      In_Storage := In_Storage - Assembly_Content(Assembly, W);
@@ -278,10 +277,9 @@ procedure Simulation is
                   Number := Assembly_Number(Assembly);
                   Assembly_Number(Assembly) := Assembly_Number(Assembly) + 1;
                else
-                  Put_Line("[RESTAURACJA] Lacking products for assembly " & Assembly_Name(Assembly));
+                  Put_Line("[RESTAURACJA] Niestety, nie mamy obecnie " & Assembly_Name(Assembly) & " na stanie.");
                   Number := 0;
                end if;
-               Evaluate_Needs;
             end Order;
          end select;
          Evaluate_Needs;
