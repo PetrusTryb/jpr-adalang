@@ -25,14 +25,14 @@ procedure Simulation is
    subtype Consumer_Type is Integer range 1 .. Number_Of_Consumers;
    function "+"(X: String) return Unbounded_String renames To_Unbounded_String;
    Product_Name: constant array (Product_Type) of Unbounded_String
-     := (+"Bulka", +"Wolowina", +"Ser", +"Pikle", +"Salata", +"Kurczak", +"Pomidor", +"Bekon");
+     := (+"Hamburger Bun", +"Beef", +"Cheese", +"Pickles", +"Lettuce", +"Chicken", +"Tomato", +"Bacon");
    --Sources:
    --1. https://mcdonalds.pl/nasze-menu/burgery/hamburger/
    --2. https://mcdonalds.pl/nasze-menu/burgery/cheeseburger/
    --3. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-klasyczny/
    --4. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-bekon-deluxe/
    Assembly_Name: constant array (Assembly_Type) of Unbounded_String
-     := (+"Hamburger", +"Cheeseburger", +"McWrap Klasyczny", +"McWrap Bekon");
+     := (+"Hamburger", +"Cheeseburger", +"McWrap Classic", +"McWrap Bekon");
    --Assembly_Alternatives: constant array (Assembly_Type) of Assembly_Type
      --:= (2,1,4,3);
    --Assembly contents defined in line 138
@@ -87,17 +87,17 @@ procedure Simulation is
          Production := Production_Time;
          Active := True;
       end Start;
-      Put_Line("[PRODUCENT] Uruchomiono produkcje: " & Product_Name(Product_Type_Number));
+      Put_Line("[PRODUCENT] Production started: " & Product_Name(Product_Type_Number));
       loop
          delay Duration(Random_Production.Random(G));
-         Put_Line("[PRODUCENT] Wysylanie: " & Product_Name(Product_Type_Number)
+         Put_Line("[PRODUCENT] Sending: " & Product_Name(Product_Type_Number)
                   & " #"  & Integer'Image(Product_Number));
          -- Accept for storage
          B.Take(Product_Type_Number, Product_Number, Last_Accepted);
          if not Last_Accepted then
-            Put_Line("[PRODUCENT] Restauracja nie przyjela dostawy " & Product_Name(Product_Type_Number) & " - produkcja wstrzymana");
+            Put_Line("[PRODUCENT] Restaurant did not accept delivery " & Product_Name(Product_Type_Number) & " - production halted");
             accept Resume_Production  do
-               Put_Line("[PRODUCENT] Restauracja jest gotowa przyjac " & Product_Name(Product_Type_Number) & " - wznawianie produkcji...");
+               Put_Line("[PRODUCENT] The restaurant is ready to take order " & Product_Name(Product_Type_Number) & " - resuming production...");
             end Resume_Production;
          else
             Product_Number := Product_Number + 1;
@@ -116,8 +116,8 @@ procedure Simulation is
       Consumption: Integer;
       Assembly_Type: Integer;
       Consumer_Name: constant array (1 .. Number_Of_Consumers)
-        of String(1 .. 8)
-        := ("Student1", "Student2");
+        of String(1 .. 9)
+        := ("STUDENT_1", "STUDENT_2");
    begin
       accept Start(Consumer_Number: in Consumer_Type;
                    Consumption_Time: in Integer) do
@@ -130,16 +130,16 @@ procedure Simulation is
          delay Duration(Random_Consumption.Random(G)); --  simulate consumption
          Assembly_Type := Random_Assembly.Random(G2);
          -- take an assembly for consumption
-         Put_Line("["& Consumer_Name(Consumer_Nb) & "] Poprosze " &
+         Put_Line("["& Consumer_Name(Consumer_Nb) & "] Please " &
                     Assembly_Name(Assembly_Type));
          B.Order(Assembly_Type, Assembly_Number);
          --TODO: await order
          if Assembly_Number > 0 then
-            Put_Line("["&Consumer_Name(Consumer_Nb) & "] Odebralem " &
+            Put_Line("["&Consumer_Name(Consumer_Nb) & "] I picked up " &
                        Assembly_Name(Assembly_Type) & " #" &
-                       Integer'Image(Assembly_Number)&" - dziekuje!");
+                       Integer'Image(Assembly_Number)&" - thanks!");
          else
-            Put_Line("["&Consumer_Name(Consumer_Nb) & "] Trudno, sprobuje innym razem.");
+            Put_Line("["&Consumer_Name(Consumer_Nb) & "] I will try next time.");
          end if;
       end loop;
    end Consumer;
@@ -248,19 +248,19 @@ procedure Simulation is
       end Storage_Contents;
 
    begin
-      Put_Line("[RESTAURACJA] Zapraszamy");
+      Put_Line("[RESTAURANT] Welcome");
       Setup_Variables;
       loop
          select
             accept Take(Product: in Product_Type; Number: in Integer; Accepted: out Boolean) do
                if Can_Accept(Product) then
-                  Put_Line("[RESTAURACJA] Przyjeto dostawe: " & Product_Name(Product) & " #" &
+                  Put_Line("[RESTAURANT] Delivery accepted: " & Product_Name(Product) & " #" &
                              Integer'Image(Number));
                   Storage(Product) := Storage(Product) + 1;
                   In_Storage := In_Storage + 1;
                   Accepted:=True;
                else
-                  Put_Line("[RESTAURACJA] Odrzucono dostawe: " & Product_Name(Product) & " #" &
+                  Put_Line("[RESTAURANT] Delivery rejected: " & Product_Name(Product) & " #" &
                              Integer'Image(Number));
                   Accepted:=False;
                end if;
@@ -268,8 +268,8 @@ procedure Simulation is
          or
             accept Order(Assembly: in Assembly_Type; Number: out Integer) do
                if Can_Deliver(Assembly) then
-                  Put_Line("[RESTAURACJA] Zamowienie " & Assembly_Name(Assembly) & " #" &
-                             Integer'Image(Assembly_Number(Assembly))&" jest gotowe.");
+                  Put_Line("[RESTAURANT] Order: " & Assembly_Name(Assembly) & " #" &
+                             Integer'Image(Assembly_Number(Assembly))&" is ready.");
                   for W in Product_Type loop
                      Storage(W) := Storage(W) - Assembly_Content(Assembly, W);
                      In_Storage := In_Storage - Assembly_Content(Assembly, W);
@@ -277,7 +277,7 @@ procedure Simulation is
                   Number := Assembly_Number(Assembly);
                   Assembly_Number(Assembly) := Assembly_Number(Assembly) + 1;
                else
-                  Put_Line("[RESTAURACJA] Niestety, nie mamy obecnie " & Assembly_Name(Assembly) & " na stanie.");
+                  Put_Line("[RESTAURANT] Unfortunately, we do not currently have " & Assembly_Name(Assembly) & " in stock.");
                   Number := 0;
                end if;
             end Order;
