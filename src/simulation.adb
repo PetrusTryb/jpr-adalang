@@ -13,22 +13,30 @@ with Ada.Numerics.Discrete_Random;
 
 
 procedure Simulation is
+
    Number_Of_Products: constant Integer := 8;
    Number_Of_Meals: constant Integer := 4;
    Number_Of_Consumers: constant Integer := 2;
+
    subtype Product_Type is Integer range 1 .. Number_Of_Products;
    subtype Meal_Type is Integer range 1 .. Number_Of_Meals;
    subtype Consumer_Type is Integer range 1 .. Number_Of_Consumers;
+
    function "+"(X: String) return Unbounded_String renames To_Unbounded_String;
+
    Product_Name: constant array (Product_Type) of Unbounded_String
-     := (+"Hamburger Bun", +"Beef", +"Cheese", +"Pickles", +"Lettuce", +"Chicken", +"Tomato", +"Bacon");
+     := (+"Hamburger Bun", +"Beef", +"Cheese", +"Pickles", +"Lettuce",
+        +"Chicken", +"Tomato", +"Bacon");
+
    --Sources:
    --1. https://mcdonalds.pl/nasze-menu/burgery/hamburger/
    --2. https://mcdonalds.pl/nasze-menu/burgery/cheeseburger/
    --3. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-klasyczny/
    --4. https://mcdonalds.pl/nasze-menu/mcwrapy-i-salatki/mcwrap-bekon-deluxe/
+
    Meal_Name: constant array (Meal_Type) of Unbounded_String
      := (+"Hamburger", +"Cheeseburger", +"McWrap Classic", +"McWrap Bekon");
+
    --Meal_Alternatives: constant array (Meal_Type) of Meal_Type
      --:= (2,1,4,3);
    --Meal contents defined in line 138
@@ -88,10 +96,17 @@ procedure Simulation is
                   & " #"  & Integer'Image(Product_Number));
          -- Accept for storage
          B.Take(Product_Type_Number, Product_Number, Last_Accepted);
+
          if not Last_Accepted then
-            Put_Line("[PRODUCER] Restaurant did not accept delivery " & Product_Name(Product_Type_Number) & " - production halted");
+            Put_Line("[PRODUCER] Restaurant did not accept delivery " 
+                     & Product_Name(Product_Type_Number) 
+                     & " - production halted");
+
             accept Resume_Production  do
-               Put_Line("[PRODUCER] The restaurant is ready to take order " & Product_Name(Product_Type_Number) & " - resuming production...");
+               Put_Line("[PRODUCER] The restaurant is ready to take order " 
+                        & Product_Name(Product_Type_Number) 
+                        & " - resuming production...");
+
             end Resume_Production;
          else
             Product_Number := Product_Number + 1;
@@ -140,14 +155,18 @@ procedure Simulation is
    task body Buffer is
       Storage_Capacity: constant Integer := 40;
       type Storage_type is array (Product_Type) of Integer;
+
       Storage: Storage_type
         := (0, 0, 0, 0, 0, 0, 0, 0);
+
       Meal_Content: array(Meal_Type, Product_Type) of Integer
         := ((2, 1, 0, 3, 0, 0, 0, 0),
             (2, 1, 1, 2, 0, 0, 0, 0),
             (0, 0, 3, 0, 2, 4, 4, 0),
             (0, 0, 0, 0, 2, 4, 4, 2));
+
       Max_Meal_Content: array(Product_Type) of Integer;
+
       Meal_Number: array(Meal_Type) of Integer
         := (1, 1, 1, 1);
       In_Storage: Integer := 0;
@@ -176,25 +195,31 @@ procedure Simulation is
          if Free <= 0 then
             return False;
          end if;
+
          MP := True;
+
          for W in Product_Type loop
             if Storage(W) < Max_Meal_Content(W) then
                MP := False;
             end if;
          end loop;
+
          if MP then
             return True;		--  storage has products for arbitrary
             --  Meal
          end if;
+
          if Integer'Max(0, Max_Meal_Content(Product) - Storage(Product)) > 0 then
             -- exactly this product lacks
             return True;
          end if;
          Lacking_room := 1;			--  insert current product
+
          for W in Product_Type loop
             Lacking(W) := Integer'Max(0, Max_Meal_Content(W) - Storage(W));
             Lacking_room := Lacking_room + Lacking(W);
          end loop;
+
          if Free >= Lacking_room then
             -- there is enough room in storage for arbitrary Meal
             return True;
@@ -243,26 +268,31 @@ procedure Simulation is
          select
             accept Take(Product: in Product_Type; Number: in Integer; Accepted: out Boolean) do
                if Can_Accept(Product) then
-                  Put_Line("[RESTAURANT] Delivery accepted: " & Product_Name(Product) & " #" &
-                             Integer'Image(Number));
+                  Put_Line("[RESTAURANT] Delivery accepted: " 
+                            & Product_Name(Product) & " #" 
+                            & Integer'Image(Number));
+
                   Storage(Product) := Storage(Product) + 1;
                   In_Storage := In_Storage + 1;
                   Accepted:=True;
                else
-                  Put_Line("[RESTAURANT] Delivery rejected: " & Product_Name(Product) & " #" &
-                             Integer'Image(Number));
+                  Put_Line("[RESTAURANT] Delivery rejected: " 
+                            & Product_Name(Product) & " #" 
+                            & Integer'Image(Number));
                   Accepted:=False;
                end if;
             end Take;
          or
             accept Order(Meal: in Meal_Type; Number: out Integer) do
                if Can_Deliver(Meal) then
-                  Put_Line("[RESTAURANT] Order: " & Meal_Name(Meal) & " #" &
-                             Integer'Image(Meal_Number(Meal))&" is ready.");
+                  Put_Line("[RESTAURANT] Order: " & Meal_Name(Meal) & " #" 
+                            & Integer'Image(Meal_Number(Meal))&" is ready.");
+
                   for W in Product_Type loop
                      Storage(W) := Storage(W) - Meal_Content(Meal, W);
                      In_Storage := In_Storage - Meal_Content(Meal, W);
                   end loop;
+
                   Number := Meal_Number(Meal);
                   Meal_Number(Meal) := Meal_Number(Meal) + 1;
                else
