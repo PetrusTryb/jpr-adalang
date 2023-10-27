@@ -264,15 +264,21 @@ procedure Simulation is
       end Storage_Contents;
       
       procedure Inspection_process(maxN: in Integer) is
+         All_OK: Boolean:=True;
       begin
          Storage_Contents;
          for W in Product_Type loop
             if Storage(W)>maxN then
-               Put_Line("Too many "
-                        & Product_Name(W) & " in storage - cleaning up...");
+               Put_Line("INSPECTION RESULT: You have more than "&Integer'Image(maxN)
+                        &" products "& Product_Name(W) 
+                        &" in your storage - you need to throw them away and clean up");
                Storage(W):=0;
+               All_OK:=False;
             end if;
          end loop;
+         if All_OK then
+            Put_Line("INSPECTION RESULT: No problems");
+         end if;
       end Inspection_process;
 
    begin
@@ -317,7 +323,6 @@ procedure Simulation is
             end Order;
          or
             accept Inspection_In_Storage(maxN: Integer) do
-               Put_Line("[BUFFER] Inspection in progress...");
                Inspection_process(maxN);
                Evaluate_Needs;
             end Inspection_In_Storage;
@@ -337,8 +342,9 @@ procedure Simulation is
       end Start;
       loop
          delay Duration(Interval);
+         Put_Line("[INSPECTOR] Inspecting buffer...");
          B.Inspection_In_Storage(Max_Prod);
-         Put_Line("[INSPECTOR] End");
+         Put_Line("[INSPECTOR] Inspection finished");
       end loop;
    end Inspector;
 
@@ -349,8 +355,8 @@ begin
    for J in 1 .. Number_Of_Consumers loop
       K(J).Start(J,0);
    end loop;
-   --delay 5 seconds, max 5 products
-   I.Start(5,5);
+   --delay 7 seconds, max 5 products
+   I.Start(7,5);
 end Simulation;
 
 
