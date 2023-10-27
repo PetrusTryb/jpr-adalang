@@ -56,6 +56,10 @@ procedure Simulation is
       entry Start(Consumer_Number: in Consumer_Type;
                   Consumption_Time: in Integer);
    end Consumer;
+   
+   task type Inspector is
+      entry Start(Insp_Interval: in Integer; Max_Prods: in Integer);
+   end Inspector;
 
    -- In the Buffer, products are assemblied into an Meal
    task type Buffer is
@@ -63,11 +67,13 @@ procedure Simulation is
       entry Take(Product: in Product_Type; Number: in Integer; Accepted: out Boolean);
       -- Deliver an Meal provided there are enough products for it
       entry Order(Meal: in Meal_Type; Number: out Integer);
+      entry Inspection_In_Storage(MaxN: in Integer);
    end Buffer;
 
    P: array ( 1 .. Number_Of_Products ) of Producer;
    K: array ( 1 .. Number_Of_Consumers ) of Consumer;
    B: Buffer;
+   I: Inspector;
 
    task body Producer is
       subtype Production_Time_Range is Integer range 4 .. 8;
@@ -256,6 +262,18 @@ procedure Simulation is
                      & Product_Name(W));
          end loop;
       end Storage_Contents;
+      
+      procedure Inspection_process(maxN: in Integer) is
+      begin
+         Storage_Contents;
+         for W in Product_Type loop
+            if Storage(W)>maxN then
+               Put_Line("Too many "
+                        & Product_Name(W) & " in storage - cleaning up...");
+               Storage(W):=0;
+            end if;
+         end loop;
+      end Inspection_process;
 
    begin
       Put_Line("[RESTAURANT] Welcome");
@@ -297,10 +315,32 @@ procedure Simulation is
                   Number := 0;
                end if;
             end Order;
+         or
+            accept Inspection_In_Storage(maxN: Integer) do
+               Put_Line("[BUFFER] Inspection in progress...");
+               Inspection_process(maxN);
+               Evaluate_Needs;
+            end Inspection_In_Storage;
          end select;
          Evaluate_Needs;
       end loop;
    end Buffer;
+   
+   task body Inspector is
+      Interval: Integer;
+      Max_Prod: Integer;
+   begin
+      accept Start(Insp_Interval: in Integer; Max_Prods: in Integer) do
+         Interval:=Insp_Interval;
+         Max_Prod:=Max_Prods;
+         Put_Line("[INSPECTOR] Started");
+      end Start;
+      loop
+         delay Duration(Interval);
+         B.Inspection_In_Storage(Max_Prod);
+         Put_Line("[INSPECTOR] End");
+      end loop;
+   end Inspector;
 
 begin
    for I in 1 .. Number_Of_Products loop
@@ -309,6 +349,8 @@ begin
    for J in 1 .. Number_Of_Consumers loop
       K(J).Start(J,0);
    end loop;
+   --delay 5 seconds, max 5 products
+   I.Start(5,5);
 end Simulation;
 
 
